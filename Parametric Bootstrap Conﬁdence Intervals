@@ -1,0 +1,304 @@
+rm(list=ls(all=TRUE))
+library(MASS)
+library(cubature)
+#*********************************************************************************************************************
+x=c(23,261,87,7,120,14,62,47,225,71,246,21,42,20,5,12,120,11)
+y=c(50,44,102,72,22,39,3,15,197,188,79,88,46,5,5,36,22,139)
+
+teta.had2=sum((x-mean(x))*(y-mean(y)))/sqrt(sum((x-mean(x))^2)*sum((y-mean(y))^2))
+var.x=sd(x)^2
+var.y=sd(y)^2
+cov.xy=teta.had2*sd(x)*sd(y)
+sigma=matrix(c(var.x,cov.xy,cov.xy,var.y),nrow=2)
+#*********************************************************************************************************************
+n=18
+B=2000
+
+
+teta.had=se.boot2=t.boot=numeric(B)
+for(i in 1:B){
+z=mvrnorm(n,c(mean(x),mean(y)),sigma)
+x1=z[,1]
+y1=z[,2]
+teta.had[i]=sum((x1-mean(x1))*(y1-mean(y1)))/sqrt(sum((x1-mean(x1))^2)*sum((y1-mean(y1))^2))
+
+se.boot2[i]=(1-(teta.had[i]^2))/sqrt(n-3)
+t.boot[i]=(teta.had[i]-teta.had2)/se.boot2[i]
+}
+#*********************************************************************************************************************
+#                                           standard
+#*********************************************************************************************************************
+se.boot=sqrt(sum((teta.had-mean(teta.had))^2)/(B-1))
+lower.stan=teta.had2-(1.96*se.boot)
+upper.stan=teta.had2+(1.96*se.boot)
+
+
+#*********************************************************************************************************************
+#                                           percentile methood
+#*********************************************************************************************************************
+lower.PM=quantile(teta.had,probs=c(0.025,0.975),names=FALSE)[1]
+upper.PM=quantile(teta.had,probs=c(0.025,0.975),names=FALSE)[2]
+
+#*********************************************************************************************************************
+#                                           Bc
+#*********************************************************************************************************************
+P0=length(teta.had[teta.had<=teta.had2])/B
+Z0=qnorm(P0,0,1)
+
+Z001=(2*Z0)-1.96
+Z002=(2*Z0)+1.96
+
+P01=pnorm(Z001,0,1)
+P02=pnorm(Z002,0,1)
+
+lower.Bc=quantile(teta.had,probs=c(P01,P02),names=FALSE)[1]
+upper.Bc=quantile(teta.had,probs=c(P01,P02),names=FALSE)[2]
+
+#*********************************************************************************************************************
+#                                           Bca
+#*********************************************************************************************************************
+
+
+P0.2=length(teta.had[teta.had<=teta.had2])/B
+Z0.2=qnorm(P0.2,0,1)
+
+Z001.2=Z0.2+((Z0.2-1.96)/(1-(0.01*(Z0.2-1.96))))
+Z002.2=Z0.2+((Z0.2+1.96)/(1-(0.01*(Z0.2+1.96))))
+
+P01.2=pnorm(Z001.2,0,1)
+P02.2=pnorm(Z002.2,0,1)
+
+lower.Bca=quantile(teta.had,probs=c(P01.2,P02.2),names=FALSE)[1]
+upper.Bca=quantile(teta.had,probs=c(P01.2,P02.2),names=FALSE)[2]
+
+
+#*********************************************************************************************************************
+#                                           t.boot
+#*********************************************************************************************************************
+lower.boot.t=teta.had2-(((1-(teta.had2^2))/sqrt(n-3))*quantile(t.boot,probs=c(0.025,0.975),names=FALSE)[2])
+upper.boot.t=teta.had2-(((1-(teta.had2^2))/sqrt(n-3))*quantile(t.boot,probs=c(0.025,0.975),names=FALSE)[1])
+
+#*********************************************************************************************************************
+#                                           Tail areas
+#*********************************************************************************************************************
+gg3=function(low,up){
+gg1=function(x1){
+(((n-2)*((1-(low^2))^((n-1)/2))*((1-(x1[1]^2))^((n-4)/2)))/pi)*(1/((cosh(x1[2])-(x1[1]*low))^(n-1)))
+}
+
+gg2=function(x2){
+(((n-2)*((1-(up^2))^((n-1)/2))*((1-(x2[1]^2))^((n-4)/2)))/pi)*(1/((cosh(x2[2])-(x2[1]*up))^(n-1)))
+}
+below=adaptIntegrate(gg2,c(-1,0),c(teta.had2,Inf))$integral
+above=adaptIntegrate(gg1,c(teta.had2,0),c(1,Inf))$integral
+
+
+c(below,above)
+}
+
+Below.stan=gg3(lower.stan,upper.stan)[1]
+Above.stan=gg3(lower.stan,upper.stan)[2]
+
+Below.PM=gg3(lower.PM,upper.PM)[1]
+Above.PM=gg3(lower.PM,upper.PM)[2]
+
+Below.Bc=gg3(lower.Bc,upper.Bc)[1]
+Above.Bc=gg3(lower.Bc,upper.Bc)[2]
+
+Below.Bca=gg3(lower.Bca,upper.Bca)[1]
+Above.Bca=gg3(lower.Bca,upper.Bca)[2]
+
+Below.t=gg3(lower.boot.t,upper.boot.t)[1]
+Above.t=gg3(lower.boot.t,upper.boot.t)[2]
+
+#*********************************************************************************************************************
+#                                               CP
+#*********************************************************************************************************************
+gg4=function(x1){
+(((n-2)*((1-(teta.had2^2))^((n-1)/2))*((1-(x1[1]^2))^((n-4)/2)))/pi)*(1/((cosh(x1[2])-(x1[1]*teta.had2))^(n-1)))
+}
+
+cp.stan=adaptIntegrate(gg4,c(lower.stan,0),c(upper.stan,Inf))$integral
+cp.PM=adaptIntegrate(gg4,c(lower.PM,0),c(upper.PM,Inf))$integral
+cp.Bc=adaptIntegrate(gg4,c(lower.Bc,0),c(upper.Bc,Inf))$integral
+cp.BCa=adaptIntegrate(gg4,c(lower.Bca,0),c(upper.Bca,Inf))$integral
+cp.t=adaptIntegrate(gg4,c(lower.boot.t,0),c(upper.boot.t,Inf))$integral
+
+
+#*********************************************************************************************************************
+#                                               histogeram
+#*********************************************************************************************************************
+
+par(mfrow=c(2,3))
+
+hist(teta.had,col="blue",freq = FALSE,main = "",xlab="Bootstrap Correlations",ylab="Density",ylim=c(-0.25,2))
+lines(density(teta.had), col = "red",lwd=2,ylim=c(-0.25,2))
+
+points(lower.PM,0, col = "red",type="p", pch=16,lwd=2)
+points(upper.PM,0, col = "red",type="p", pch=16,lwd=2)
+points(teta.had2,0, col = "black",type="p", pch=16,lwd=2)
+
+text(x=mean(teta.had),y=-0.2,round(teta.had2,digits=3),col="black")
+text(x=lower.PM,y=-0.2,round(lower.PM,digits=3),col="red")
+text(x=upper.PM,y=-0.2,round(upper.PM,digits=3),col="red")
+
+abline(h=0, col="black")
+
+#*********************************************************************************************************************
+#                                               histogeram.t
+#*********************************************************************************************************************
+
+ttt=seq(-3,4,by=0.1)
+ttt2=dt(ttt,n-1,log = FALSE)
+hist(t.boot,col="blue",freq = FALSE,breaks=30,main = "",xlab=expression(t^"*"),ylab="Density",xlim=c(-3,4),ylim=c(-0.06,0.4))
+lines(density(t.boot), col = "red",lwd=2)
+lines(ttt,ttt2,type="l",col="green",lwd=2)
+
+points(quantile(t.boot,probs=0.025),0, col = "red",type="p", pch=16,lwd=3)
+points(quantile(t.boot,probs=0.975),0, col = "red",type="p", pch=16,lwd=3)
+text(x=quantile(t.boot,probs=0.025),y=-0.03,round(quantile(t.boot,probs=0.025),digits=3),col="red")
+text(x=quantile(t.boot,probs=0.975),y=-0.03,round(quantile(t.boot,probs=0.975),digits=3),col="red")
+abline(h=0, col="black")
+abline(v=0, col="black",lty=3,lwd=2)
+
+#*********************************************************************************************************************
+#                                               plot.standard
+#*********************************************************************************************************************
+
+
+xx=seq(-.8,1.5,length=100)
+
+yy=dnorm(xx, mean =teta.had2, sd =se.boot)
+yy1=dnorm(xx, mean =lower.stan, sd =se.boot)
+yy2=dnorm(xx, mean =upper.stan, sd =se.boot)
+
+plot(xx,yy,type="l",lwd=1,xlab=expression(theta),ylab="Density",ylim=c(-0.2,2.25))
+points(teta.had2,0,col = "black",type="p",pch=16,lwd=3)
+text(x=teta.had2,y=-0.1,round(teta.had2,digits=3),col="black")
+title(main="standard")
+
+lines(xx,yy1,col="blue",lty=2,lwd=1)
+points(lower.stan,0,col = "blue",type="p", pch=16,lwd=3)
+text(x=lower.stan,y=-0.1,round(lower.stan,digits=3),col="blue")
+
+lines(xx,yy2,col="red",lty=3,lwd=1)
+points(upper.stan,0, col = "red",type="p", pch=16,lwd=3)
+text(x=upper.stan,y=-0.1,round(upper.stan,digits=3),col="red")
+
+abline(h=0, col="black")
+lines(c(teta.had2,teta.had2),c(0,0.3),type="l",col = "green",lty=1,lwd=3)
+text(x=teta.had2-0.15,y=0.1,0.025,col="red")
+text(x=teta.had2+0.15,y=0.1,0.025,col="red")
+
+#*********************************************************************************************************************
+#                                               plot.cdf.PM
+#*********************************************************************************************************************
+
+
+plot(ecdf(teta.had),xlim=c(-0.6,0.8),lwd=1,xlab=expression(hat(theta)^"*"),main = "",ylab=expression(alpha),ylim=c(-0.1,1))
+
+points(lower.PM,0, col = "blue",type="p", pch=16,lwd=2)
+points(upper.PM,0, col = "blue",type="p", pch=16,lwd=2)
+
+text(x=lower.PM,y=-0.05,round(lower.PM,digits=3),col="blue")
+text(x=upper.PM,y=-0.05,round(upper.PM,digits=3),col="blue")
+
+abline(h=0, col="blue",lty=3)
+abline(v=-0.4, col="blue",lty=3)
+
+points(-0.4,0.975, col = "blue",type="p", pch=16,lwd=2)
+text(x=-0.5,y=0.975,0.975,col="red")
+
+points(-0.4,0.025,col = "blue",type="p", pch=16,lwd=2)
+text(x=-0.5,y=0.025,0.025,col="red")
+
+lines(c(-0.4,lower.PM,lower.PM),c(0.025,0.025,0),type="l",col = "red",lty=2)
+lines(c(-0.4,upper.PM,upper.PM),c(0.975,0.975,0),type="l",col = "red",lty=2)
+title(main="percentile method")
+
+
+#*********************************************************************************************************************
+#                                               plot.cdf.BC
+#*********************************************************************************************************************
+
+
+plot(ecdf(teta.had),xlim=c(-0.6,0.8),lwd=1,xlab=expression(hat(theta)^"*"),main = "",ylab=expression(alpha),ylim=c(-0.1,1))
+
+points(lower.Bc,0, col = "blue",type="p", pch=16,lwd=2)
+points(upper.Bc,0, col = "blue",type="p", pch=16,lwd=2)
+
+text(x=lower.Bc,y=-0.05,round(lower.Bc,digits=3),col="blue")
+text(x=upper.Bc,y=-0.05,round(upper.Bc,digits=3),col="blue")
+
+abline(h=0, col="blue",lty=3)
+abline(v=-0.4, col="blue",lty=3)
+
+points(-0.4,round(P02,digits=3), col = "blue",type="p", pch=16,lwd=2)
+text(x=-0.5,y=round(P02,digits=3),round(P02,digits=3),col="red")
+
+points(-0.4,round(P01,digits=3),col = "blue",type="p", pch=16,lwd=2)
+text(x=-0.5,y=round(P01,digits=3),round(P01,digits=3),col="red")
+
+lines(c(-0.4,lower.Bc,lower.Bc),c(round(P01,digits=3),round(P01,digits=3),0),type="l",col = "red",lty=2)
+lines(c(-0.4,upper.Bc,upper.Bc),c(round(P02,digits=3),round(P02,digits=3),0),type="l",col = "red",lty=2)
+title(main="BC")
+
+#*********************************************************************************************************************
+#                                               plot.cdf.BCa
+#*********************************************************************************************************************
+
+
+plot(ecdf(teta.had),xlim=c(-0.6,0.8),lwd=1,xlab=expression(hat(theta)^"*"),main = "",ylab=expression(alpha),ylim=c(-0.1,1))
+
+points(lower.Bca,0, col = "blue",type="p", pch=16,lwd=2)
+points(upper.Bca,0, col = "blue",type="p", pch=16,lwd=2)
+
+text(x=lower.Bca,y=-0.05,round(lower.Bca,digits=3),col="blue")
+text(x=upper.Bca,y=-0.05,round(upper.Bca,digits=3),col="blue")
+
+abline(h=0, col="blue",lty=3)
+abline(v=-0.4, col="blue",lty=3)
+
+
+points(-0.4,round(P02.2,digits=3), col = "blue",type="p", pch=16,lwd=2)
+text(x=-0.5,y=round(P02.2,digits=3),round(P02.2,digits=3),col="red")
+
+points(-0.4,round(P01.2,digits=3),col = "blue",type="p", pch=16,lwd=2)
+text(x=-0.5,y=round(P01.2,digits=3),round(P01.2,digits=3),col="red")
+
+
+lines(c(-0.4,lower.Bca,lower.Bca),c(round(P01.2,digits=3),round(P01.2,digits=3),0),type="l",col = "red",lty=2)
+lines(c(-0.4,upper.Bca,upper.Bca),c(round(P02.2,digits=3),round(P02.2,digits=3),0),type="l",col = "red",lty=2)
+title(main="BCa")
+
+
+#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+S1=c("standard","percentile method","Bc","Bca","boot.t")
+LOWER=round(c(lower.stan,lower.PM,lower.Bc,lower.Bca,lower.boot.t),digits=3)
+UPPER=round(c(upper.stan,upper.PM,upper.Bc,upper.Bca,upper.boot.t),digits=3)
+
+
+Below=round(c(Below.stan,Below.PM,Below.Bc,Below.Bca,Below.t),digits=3)
+Above=round(c(Above.stan,Above.PM,Above.Bc,Above.Bca,Above.t),digits=3)
+CP=round(c(cp.stan,cp.PM,cp.Bc,cp.BCa,cp.t),digits=3)
+confidence=data.frame(S1,LOWER,UPPER,Below,Above,CP)
+
+
+confidence
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
