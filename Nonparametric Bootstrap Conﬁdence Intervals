@@ -126,8 +126,6 @@ cp.t=adaptIntegrate(gg4,c(lower.boot.t,0),c(upper.boot.t,Inf))$integral
 #                                               histogeram
 #*********************************************************************************************************************
 par(mfrow=c(2,3))
-
-
 hist(teta.had,col="blue",freq = FALSE,main = "",xlab="Bootstrap Correlations",ylab="Density",ylim=c(-0.25,2))
 lines(density(teta.had), col = "red",lwd=2,ylim=c(-0.25,2))
 
@@ -144,7 +142,6 @@ abline(h=0, col="black")
 #*********************************************************************************************************************
 #                                               histogeram.t
 #*********************************************************************************************************************
-
 ttt=seq(-3,4,by=0.1)
 ttt2=dt(ttt,n-1,log = FALSE)
 hist(t.boot,col="blue",freq = FALSE,breaks=50,main = "",xlab=expression(t^"*"),ylab="Density",xlim=c(-3,4),ylim=c(-0.03,0.4))
